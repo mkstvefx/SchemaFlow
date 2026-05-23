@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SchemaFlow - Relational Database Schema Designer & SQL Generator</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="dark-theme">
+
+    <!-- 1. MARKETING LANDING PAGE VIEW -->
+    <div id="landing-page" class="view-section active">
+        <!-- Ambient Glowing Backgrounds -->
+        <div class="glow-bg glow-cyan"></div>
+        <div class="glow-bg glow-violet"></div>
+
+        <!-- Header Navigation Bar -->
+        <header class="landing-header">
+            <div class="logo">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="url(#logo-grad)" stroke-width="2"/>
+                    <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="url(#logo-grad)" stroke-width="2"/>
+                    <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="url(#logo-grad)" stroke-width="2"/>
+                    <path d="M10 6.5H14" stroke="url(#logo-grad)" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M6.5 10V14" stroke="url(#logo-grad)" stroke-width="2" stroke-linecap="round"/>
+                    <defs>
+                        <linearGradient id="logo-grad" x1="3" y1="3" x2="21" y2="21" gradientUnits="userSpaceOnUse">
+                            <stop offset="0%" stop-color="#06b6d4" />
+                            <stop offset="100%" stop-color="#8b5cf6" />
+                        </linearGradient>
+                    </defs>
+                </svg>
+                <span>Schema<span class="gradient-text">Flow</span></span>
+            </div>
+            <nav class="landing-nav">
+                <a href="#features">Features</a>
+                <a href="#pricing">Pricing</a>
+                <button class="btn btn-secondary" onclick="enterAppDashboard()">Launch Designer</button>
+            </nav>
+        </header>
+
+        <!-- Hero Section -->
+        <section class="hero-section">
+            <div class="hero-tag">💎 Relational Database Modeler</div>
+            <h1>Visual Database Designing & <span class="gradient-text">Boilerplate Generators</span></h1>
+            <p class="hero-subtitle">Stop writing database migrations and schemas manually. Drag-and-drop tables, map foreign keys visually, and export clean SQL DDL scripts, Prisma structures, Mongoose schemas, and DBML configurations instantly.</p>
+            
+            <div class="hero-actions">
+                <button class="btn btn-primary btn-large" onclick="enterAppDashboard()">Enter Visual Workspace</button>
+                <a href="#pricing" class="btn btn-secondary btn-large">View Pricing Tiers</a>
+            </div>
+        </section>
+
+        <!-- Product Preview Canvas Illustration -->
+        <section class="demo-illustration-section">
+            <div class="demo-card">
+                <div class="card-bar">
+                    <div class="bar-circles"><span></span><span></span><span></span></div>
+                    <div class="bar-address">http://localhost:8080/designer</div>
+                </div>
+                
+                <div class="landing-mock-workspace">
+                    <div class="mock-table" style="top: 30px; left: 50px;">
+                        <div class="mock-table-head">users</div>
+                        <div class="mock-table-col">🔑 id <span class="type-badge">uuid</span></div>
+                        <div class="mock-table-col">email <span class="type-badge">varchar</span></div>
+                        <div class="mock-table-col">created_at <span class="type-badge">timestamp</span></div>
+                    </div>
+                    <div class="mock-table" style="top: 80px; left: 340px;">
+                        <div class="mock-table-head">orders</div>
+                        <div class="mock-table-col">🔑 id <span class="type-badge">uuid</span></div>
+                        <div class="mock-table-col">🔗 user_id <span class="type-badge">uuid</span></div>
+                        <div class="mock-table-col">total_amount <span class="type-badge">decimal</span></div>
+                    </div>
+                    <svg class="mock-svg-overlay">
+                        <path d="M 230 65 L 285 65 L 285 115 L 340 115" stroke="#06b6d4" stroke-width="2" fill="none" stroke-dasharray="4,4"/>
+                    </svg>
+                </div>
+            </div>
+        </section>
+
+        <!-- Product Features Grid -->
+        <section id="features" class="features-section">
+            <h2 class="section-title">Zero Config, Zero Hosting Costs, Max Output</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">📐</div>
+                    <h3>Drag & Drop Schema Builder</h3>
+                    <p>Create visual tables, add attributes, and link primary keys to foreign keys using auto-snapping connector lines.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <h3>Live Code Generators</h3>
+                    <p>Generates production-ready schema models for Prisma, MongoDB Mongoose, and standard SQL queries in real-time.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">💾</div>
+                    <h3>Local Save & SVG Exports</h3>
+                    <p>Download the fully functional schema state as a JSON file, or export a vector SVG image for documentation.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Subscriptions Pricing Tiers -->
+        <section id="pricing" class="pricing-section">
+            <h2 class="section-title">Pricing Built for Developers</h2>
+            <p class="section-subtitle">Start styling visual tables for free, upgrade to unlock advanced ORM generators and SVG model exports.</p>
+            <div class="pricing-grid">
+                <div class="pricing-card">
+                    <h3>Hobby Plan</h3>
+                    <div class="price">€0<span>/mo</span></div>
+                    <ul>
+                        <li>Design up to 3 SQL Tables</li>
+                        <li>SQL DDL Code generation</li>
+                        <li>Local JSON saving</li>
+                    </ul>
+                    <button class="btn btn-secondary w-full" onclick="enterAppDashboard('free')">Start Free Designer</button>
+                </div>
+                <div class="pricing-card highlighted">
+                    <div class="popular-tag">RECOMMENDED</div>
+                    <h3>Pro Plan</h3>
+                    <div class="price">€12<span>/mo</span></div>
+                    <ul>
+                        <li>Create Unlimited Tables</li>
+                        <li>SQL + Prisma Schema generators</li>
+                        <li>Mongoose MongoDB exporter</li>
+                        <li>High-quality SVG exports</li>
+                    </ul>
+                    <button class="btn btn-primary w-full" onclick="enterAppDashboard('pro')">Upgrade Demo Console</button>
+                </div>
+                <div class="pricing-card">
+                    <h3>Enterprise</h3>
+                    <div class="price">€29<span>/mo</span></div>
+                    <ul>
+                        <li>Unlimited DB models & canvases</li>
+                        <li>All code generators + DBML export</li>
+                        <li>Collaborative team sharing</li>
+                        <li>Priority email & ticket support</li>
+                    </ul>
+                    <button class="btn btn-secondary w-full" onclick="enterAppDashboard('enterprise')">Launch Enterprise Demo</button>
+                </div>
+            </div>
+        </section>
+
+        <footer class="landing-footer">
+            <p>&copy; 2026 SchemaFlow Designer. Created for Acquire.com startup valuations.</p>
+        </footer>
+    </div>
+
+
+    <!-- 2. INTERACTIVE DATABASE MODELLER WORKSPACE -->
+    <div id="dashboard-app" class="view-section">
+        <!-- Sidebar: Table Inventories & Actions -->
+        <aside class="app-sidebar">
+            <div class="sidebar-logo" onclick="exitAppDashboard()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="url(#sidebar-grad)" stroke-width="2"/>
+                    <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="url(#sidebar-grad)" stroke-width="2"/>
+                    <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="url(#sidebar-grad)" stroke-width="2"/>
+                    <path d="M10 6.5H14" stroke="url(#sidebar-grad)" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M6.5 10V14" stroke="url(#sidebar-grad)" stroke-width="2" stroke-linecap="round"/>
+                    <defs>
+                        <linearGradient id="sidebar-grad" x1="3" y1="3" x2="21" y2="21" gradientUnits="userSpaceOnUse">
+                            <stop offset="0%" stop-color="#06b6d4" />
+                            <stop offset="100%" stop-color="#8b5cf6" />
+                        </linearGradient>
+                    </defs>
+                </svg>
+                <span>Schema<span class="gradient-text">Flow</span></span>
+            </div>
+
+            <div class="sidebar-section-header">
+                <span>Database Templates</span>
+            </div>
+            <div class="template-buttons">
+                <button class="btn btn-secondary btn-sm w-full text-left" onclick="loadSchemaTemplate('billing')">💳 SaaS Billing Schema</button>
+                <button class="btn btn-secondary btn-sm w-full text-left" onclick="loadSchemaTemplate('ecommerce')">🛒 E-Commerce Shop Schema</button>
+                <button class="btn btn-secondary btn-sm w-full text-left" onclick="loadSchemaTemplate('social')">💬 Social Network Schema</button>
+            </div>
+
+            <div class="sidebar-section-header">
+                <span>Schema Controls</span>
+            </div>
+            <div class="control-buttons">
+                <button class="btn btn-primary btn-sm w-full" onclick="openCreateTableModal()">+ Create Table</button>
+                <button class="btn btn-secondary btn-sm w-full" onclick="triggerJsonDownload()">💾 Export JSON Schema</button>
+                <button class="btn btn-secondary btn-sm w-full" onclick="triggerJsonImportClick()">📤 Import JSON Schema</button>
+                <input type="file" id="import-json-file-input" style="display:none;" accept=".json" onchange="handleJsonImport(event)">
+                <button class="btn btn-secondary btn-sm w-full" onclick="downloadCanvasSvg()">🖼️ Export SVG Diagram</button>
+            </div>
+
+            <div class="sidebar-section-header">
+                <span>Schema Tables</span>
+            </div>
+            <div class="tables-inventory" id="sidebar-tables-list">
+                <!-- Dynamically filled -->
+            </div>
+
+            <!-- Stripe Billing Plan Status Box -->
+            <div class="sidebar-credits-widget">
+                <div class="credits-header">
+                    <span>Model Table Limit</span>
+                    <span id="credits-ratio">3 / 3 Tables</span>
+                </div>
+                <div class="progress-bar">
+                    <div id="credits-bar-fill" class="progress-fill" style="width: 100%;"></div>
+                </div>
+                <p class="credits-hint" id="upgrade-promo-text">Upgrade for unlimited tables</p>
+                <button class="btn btn-primary btn-sm w-full" style="margin-top:10px; font-size:0.7rem; padding:4px;" onclick="switchTab('billing')">Manage Subscriptions</button>
+            </div>
+        </aside>
+
+        <!-- Center Workspace Canvas & Right Output Drawer -->
+        <main class="app-main-split">
+            <!-- Canvas viewport -->
+            <div class="canvas-viewport" id="canvas-viewport-container">
+                <div class="canvas-controls-overlay">
+                    <span class="canvas-hint">Drag headers to move tables. Double-click card to edit structure.</span>
+                    <div class="canvas-badge" id="app-tier-badge">Pro Plan</div>
+                </div>
+                
+                <div class="canvas-workspace" id="canvas-workspace-area">
+                    <!-- SVG Overlay containing relations connection lines -->
+                    <svg class="canvas-svg-overlay" id="canvas-svg-overlay">
+                        <!-- Markers for arrows -->
+                        <defs>
+                            <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                                <path d="M 0 1 L 10 5 L 0 9 z" fill="#06b6d4" />
+                            </marker>
+                        </defs>
+                    </svg>
+                    <!-- Dynamically injected Table Cards -->
+                </div>
+            </div>
+
+            <!-- Right Exporter Output Panel -->
+            <div class="exporter-panel-container">
+                <!-- Exporter Tab triggers -->
+                <div class="exporter-tabs-header">
+                    <button class="exp-tab-btn active" data-tab="sql" onclick="switchExporterTab('sql')">SQL DDL</button>
+                    <button class="exp-tab-btn" data-tab="prisma" onclick="switchExporterTab('prisma')">Prisma</button>
+                    <button class="exp-tab-btn" data-tab="mongoose" onclick="switchExporterTab('mongoose')">Mongoose</button>
+                    <button class="exp-tab-btn" data-tab="dbml" onclick="switchExporterTab('dbml')">DBML</button>
+                    <button class="exp-tab-btn" data-tab="billing" onclick="switchExporterTab('billing')">💳 Billing</button>
+                </div>
+
+                <div class="exporter-content-area">
+                    <!-- CODE PREVIEW PANE -->
+                    <div id="exp-pane-code" class="tab-pane active" style="height:100%; display:flex; flex-direction:column;">
+                        <div class="code-header">
+                            <span id="code-lang-label">PostgreSQL / MySQL Schema Code</span>
+                            <button class="btn btn-secondary btn-sm" onclick="copyGeneratedCode()">Copy Code</button>
+                        </div>
+                        <pre class="code-editor-block"><code id="code-output-block">-- SQL output will display here</code></pre>
+                    </div>
+
+                    <!-- STRIPE PRICING OPTIONS PANE -->
+                    <div id="exp-pane-billing" class="tab-pane" style="height:100%; overflow-y:auto; padding:20px;">
+                        <div class="billing-wrapper">
+                            <div class="dash-card current-plan-card">
+                                <h3>Plan Subscriptions</h3>
+                                <p class="subtitle">Modify allocations to configure workspace restrictions.</p>
+                                <div class="billing-stats" style="margin-top:16px;">
+                                    <div class="stat-col">
+                                        <span class="stat-lbl">Active Tier</span>
+                                        <strong id="billing-tier-name">Pro Plan</strong>
+                                    </div>
+                                    <div class="stat-col">
+                                        <span class="stat-lbl">Active Tables</span>
+                                        <strong id="billing-table-count">3 Tables</strong>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="pricing-grid-mini" style="display:flex; flex-direction:column; gap:16px; margin-top:20px;">
+                                <div class="mini-pricing-card">
+                                    <div class="flex-between">
+                                        <strong>Hobby Plan</strong>
+                                        <span class="price-mini">€0/mo</span>
+                                    </div>
+                                    <p>Design up to 3 relational tables. Standard SQL DDL exports.</p>
+                                    <button class="btn btn-secondary btn-sm w-full" style="margin-top:10px;" onclick="openStripeCheckout('free')">Select Hobby</button>
+                                </div>
+
+                                <div class="mini-pricing-card active">
+                                    <div class="flex-between">
+                                        <strong>Pro Plan</strong>
+                                        <span class="price-mini">€12/mo</span>
+                                    </div>
+                                    <p>Unlimited tables, Prisma/Mongoose generation models, SVG map downloads.</p>
+                                    <button class="btn btn-primary btn-sm w-full" style="margin-top:10px;" onclick="openStripeCheckout('pro')">Upgrade to Pro</button>
+                                </div>
+
+                                <div class="mini-pricing-card">
+                                    <div class="flex-between">
+                                        <strong>Enterprise Plan</strong>
+                                        <span class="price-mini">€29/mo</span>
+                                    </div>
+                                    <p>Unlimited layouts, DBML exports, team collaboration channels.</p>
+                                    <button class="btn btn-secondary btn-sm w-full" style="margin-top:10px;" onclick="openStripeCheckout('enterprise')">Select Enterprise</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+
+    <!-- 3. TABLE EDITOR MODAL POPUP DIALOG -->
+    <div id="table-modal" class="modal-overlay hidden">
+        <div class="modal-card table-builder-modal">
+            <div class="modal-header">
+                <h3 id="table-modal-title">Create New Database Table</h3>
+                <button class="modal-close" onclick="closeTableModal()">&times;</button>
+            </div>
+            
+            <div class="modal-body scrollable-modal-body">
+                <form id="table-builder-form" onsubmit="handleTableBuilderSubmit(event)">
+                    <!-- Table Name -->
+                    <div class="form-group">
+                        <label>Table Name</label>
+                        <input type="text" id="modal-table-name" required class="styled-input" placeholder="e.g. orders" oninput="validateTableName(this)">
+                    </div>
+
+                    <!-- Columns Builder Row Headings -->
+                    <div class="columns-builder-section">
+                        <div class="col-builder-header">
+                            <span>Field Name</span>
+                            <span>Data Type</span>
+                            <span class="text-center">PK</span>
+                            <span class="text-center">NN</span>
+                            <span class="text-center">UQ</span>
+                            <span>Relation Target</span>
+                            <span></span>
+                        </div>
+
+                        <!-- Dynamic Columns List -->
+                        <div class="columns-rows-container" id="columns-rows-container">
+                            <!-- Injected column builder rows -->
+                        </div>
+
+                        <button type="button" class="btn btn-secondary btn-sm" style="margin-top: 14px;" onclick="addNewColumnBuilderRow()">+ Add Column</button>
+                    </div>
+
+                    <div class="form-actions-row">
+                        <button type="button" class="btn btn-secondary" onclick="closeTableModal()">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="btn-modal-submit-table">Save Table Schema</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- 4. STRIPE PAYMENT VERIFICATION BOX OVERLAY -->
+    <div id="stripe-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div class="stripe-branding">
+                    <span class="stripe-logo">stripe</span>
+                    <span class="checkout-label">Secure Checkout</span>
+                </div>
+                <button class="modal-close" onclick="closeStripeCheckout()">&times;</button>
+            </div>
+            
+            <div class="modal-body-split">
+                <!-- Summary Column -->
+                <div class="summary-col">
+                    <div class="business-info">
+                        <strong>SchemaFlow Designer</strong>
+                        <p id="stripe-product-desc">Pro Subscription Plan</p>
+                    </div>
+                    
+                    <div class="price-summary">
+                        <div class="price-row">
+                            <span id="stripe-product-name">Pro Plan</span>
+                            <span id="stripe-product-price">€12.00</span>
+                        </div>
+                        <div class="price-row total-row">
+                            <span>Total Due Today</span>
+                            <span id="stripe-product-total">€12.00</span>
+                        </div>
+                    </div>
+                    
+                    <div class="secure-badge">
+                        🛡️ Secured payments sandbox.
+                    </div>
+                </div>
+
+                <!-- Card inputs Column -->
+                <div class="payment-col">
+                    <h4>Card Information</h4>
+                    <form id="stripe-payment-form" onsubmit="handleStripePaymentSubmit(event)">
+                        <div class="form-group">
+                            <label>Account Email</label>
+                            <input type="email" required class="styled-input" value="developer@schemaflow.io">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Credit Card Details</label>
+                            <div class="card-input-wrapper">
+                                <input type="text" placeholder="Card Number" class="styled-input card-num" required value="4242 4242 4242 4242">
+                                <div class="card-subrow">
+                                    <input type="text" placeholder="MM/YY" class="styled-input card-expiry" required value="10/30">
+                                    <input type="text" placeholder="CVC" class="styled-input card-cvc" required value="193">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Billing Organization</label>
+                            <input type="text" class="styled-input" required value="SaaS Inc.">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Country</label>
+                            <select class="styled-select">
+                                <option>Germany</option>
+                                <option>United States</option>
+                                <option>Austria</option>
+                                <option>Switzerland</option>
+                            </select>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-full stripe-pay-btn" id="stripe-submit-btn">
+                            Pay <span id="stripe-btn-price">€12.00</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Core Interactive Client JavaScript logic -->
+    <script src="app.js"></script>
+</body>
+</html>
