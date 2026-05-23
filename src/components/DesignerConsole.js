@@ -5,7 +5,9 @@ import {
   compileSqlSchema,
   compilePrismaSchema,
   compileMongooseSchema,
-  compileDbmlSchema
+  compileDbmlSchema,
+  compileSeedSql,
+  compileMigrationSql
 } from "../utils/exporters";
 import { TEMPLATES_CATALOG } from "../utils/templatesCatalog";
 
@@ -17,7 +19,16 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
   const [isStripeModalOpen, setIsStripeModalOpen] = useState(false);
   const [editTableId, setEditTableId] = useState(null);
   const [stripeModalTier, setStripeModalTier] = useState("pro");
+  
+  // Custom Controls State
   const [zoom, setZoom] = useState(1);
+  const [sqlDialect, setSqlDialect] = useState("postgres"); // postgres, mysql, sqlite, mssql
+  const [searchTableQuery, setSearchTableQuery] = useState("");
+  
+  // Snapshots and Migration Baseline state
+  const [snapshots, setSnapshots] = useState([]);
+  const [baselineTables, setBaselineTables] = useState(TEMPLATES_CATALOG.saas);
+  const [snapshotLabel, setSnapshotLabel] = useState("");
 
   // Terminal Emulator State
   const [terminalInput, setTerminalInput] = useState("");
@@ -42,6 +53,24 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
 
   const fileInputRef = useRef(null);
 
+  // Load snapshots from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("schemaflow_snapshots");
+    if (saved) {
+      try {
+        setSnapshots(JSON.parse(saved));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, []);
+
+  // Save snapshots to localStorage on update
+  const saveSnapshotsToStorage = (newSnapshots) => {
+    setSnapshots(newSnapshots);
+    localStorage.setItem("schemaflow_snapshots", JSON.stringify(newSnapshots));
+  };
+
   // Sync virtual DB table properties when schema layout changes
   useEffect(() => {
     setVirtualDb(prev => {
@@ -55,10 +84,26 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
     });
   }, [tables]);
 
+  // Table locator scrolling centering
+  const handleSelectTableAndCenter = (tableId) => {
+    setSelectedTableId(tableId);
+    const tbl = tables.find(t => t.id === tableId);
+    const viewportEl = document.getElementById("canvas-viewport-container");
+    if (tbl && viewportEl) {
+      viewportEl.scrollTo({
+        left: tbl.x * zoom - viewportEl.clientWidth / 2 + 105 * zoom,
+        top: tbl.y * zoom - viewportEl.clientHeight / 2 + 80 * zoom,
+        behavior: "smooth"
+      });
+    }
+  };
+
   // Load a preset template
   const handleLoadTemplate = (key) => {
     if (TEMPLATES_CATALOG[key]) {
-      setTables(JSON.parse(JSON.stringify(TEMPLATES_CATALOG[key])));
+      const copy = JSON.parse(JSON.stringify(TEMPLATES_CATALOG[key]));
+      setTables(copy);
+      setBaselineTables(copy); // Reset baseline on template load
       setSelectedTableId(TEMPLATES_CATALOG[key][0].id);
     }
   };
@@ -118,6 +163,32 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
     }));
   };
 
+  // Version Snapshot Controls
+  const handleCreateSnapshot = (e) => {
+    e.preventDefault();
+    const label = snapshotLabel.trim() || `Schema Snapshot #${snapshots.length + 1}`;
+    const newSnap = {
+      id: "snap-" + Date.now(),
+      name: label,
+      timestamp: new Date().toLocaleTimeString(),
+      tables: JSON.parse(JSON.stringify(tables))
+    };
+    const nextList = [newSnap, ...snapshots];
+    saveSnapshotsToStorage(nextList);
+    setSnapshotLabel("");
+    alert(`Snapshot "${label}" created successfully!`);
+  };
+
+  const handleRestoreSnapshot = (snap) => {
+    if (!confirm(`Are you sure you want to restore "${snap.name}"? Current canvas will be overwritten.`)) return;
+    setTables(JSON.parse(JSON.stringify(snap.tables)));
+  };
+
+  const handleDeleteSnapshot = (id) => {
+    const filtered = snapshots.filter(s => s.id !== id);
+    saveSnapshotsToStorage(filtered);
+  };
+
   // Compute Schema Diagnostics
   const totalColumns = tables.reduce((acc, t) => acc + t.columns.length, 0);
   const totalRelations = tables.reduce((acc, t) => {
@@ -168,7 +239,6 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
   const getOptimizerRecommendations = () => {
     const list = [];
     tables.forEach(t => {
-      // Audit columns
       const hasTimestamps = t.columns.some(c => c.name === "created_at" || c.name === "updated_at");
       if (!hasTimestamps) {
         list.push({
@@ -178,7 +248,6 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
         });
       }
 
-      // PK check
       const hasPk = t.columns.some(c => c.pk);
       if (!hasPk) {
         list.push({
@@ -188,7 +257,6 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
         });
       }
 
-      // Indexes on FKs
       t.columns.forEach(col => {
         if (col.fkTarget) {
           list.push({
@@ -199,7 +267,6 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
         }
       });
 
-      // Text type heap size
       t.columns.forEach(col => {
         if (col.type === "text") {
           list.push({
@@ -562,9 +629,10 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
   // Compile active tab codes
   let activeCode = "";
   let codeLangLabel = "SQL Code";
+  
   if (activeExporterTab === "sql") {
-    activeCode = compileSqlSchema(tables);
-    codeLangLabel = "SQL DDL Script (PostgreSQL/MySQL)";
+    activeCode = compileSqlSchema(tables, sqlDialect);
+    codeLangLabel = `${sqlDialect.toUpperCase()} DDL Script Schema`;
   } else if (activeExporterTab === "prisma") {
     activeCode = compilePrismaSchema(tables);
     codeLangLabel = "Prisma Schema Model File (schema.prisma)";
@@ -574,6 +642,12 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
   } else if (activeExporterTab === "dbml") {
     activeCode = compileDbmlSchema(tables);
     codeLangLabel = "Database Markup Language Model (dbdiagram.io)";
+  } else if (activeExporterTab === "seed") {
+    activeCode = compileSeedSql(tables);
+    codeLangLabel = "Virtual Database SQL Mock Seeding Data (seed.sql)";
+  } else if (activeExporterTab === "migration") {
+    activeCode = compileMigrationSql(baselineTables, tables);
+    codeLangLabel = "Alter Schema DDL Migration Script";
   }
 
   // Sidebar Limits calculator
@@ -600,6 +674,11 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
     setIsStripeModalOpen(true);
   };
 
+  // Filter sidebar tables list
+  const filteredSidebarTables = tables.filter(t => 
+    t.name.toLowerCase().includes(searchTableQuery.toLowerCase())
+  );
+
   return (
     <div id="dashboard-app" className="w-full min-h-screen grid grid-cols-1 md:grid-cols-[240px_1fr] bg-[#09090b] select-none">
       
@@ -619,7 +698,7 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
         <div className="text-[10px] font-bold text-[#71717a] uppercase tracking-wider mt-2.5">
           Database Templates
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1.5 font-sans">
           <button className="px-3 py-1.5 border border-white/8 hover:border-white/16 hover:bg-white/5 rounded text-xs font-semibold text-white cursor-pointer text-left w-full transition-all" onClick={() => handleLoadTemplate("saas")}>
             💳 SaaS Core Billing
           </button>
@@ -662,14 +741,24 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
         <div className="text-[10px] font-bold text-[#71717a] uppercase tracking-wider mt-2.5">
           Schema Tables
         </div>
-        <div className="flex flex-col gap-1 flex-grow overflow-y-auto">
-          {tables.length === 0 ? (
-            <span className="text-[10px] text-[#71717a]">No active tables.</span>
+        
+        {/* Table search filter bar */}
+        <input
+          type="text"
+          placeholder="Filter tables..."
+          value={searchTableQuery}
+          onChange={(e) => setSearchTableQuery(e.target.value)}
+          className="w-full bg-white/2 border border-white/8 rounded-md px-2 py-1.5 text-[11px] text-[#f4f4f5] outline-none focus:border-[#06b6d4] transition-all"
+        />
+
+        <div className="flex flex-col gap-1 max-h-[160px] overflow-y-auto">
+          {filteredSidebarTables.length === 0 ? (
+            <span className="text-[10px] text-[#71717a]">No matching tables.</span>
           ) : (
-            tables.map(t => (
+            filteredSidebarTables.map(t => (
               <div
                 key={t.id}
-                onClick={() => setSelectedTableId(t.id)}
+                onClick={() => handleSelectTableAndCenter(t.id)}
                 className={`flex justify-between items-center px-2.5 py-1.5 rounded border border-transparent cursor-pointer text-xs transition-all ${
                   selectedTableId === t.id ? "bg-[#06b6d4]/8 border-[#06b6d4]/15 text-white" : "bg-white/1 hover:bg-white/3 hover:border-white/8 text-[#a1a1aa]"
                 }`}
@@ -755,13 +844,13 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
         <div id="canvas-viewport-container" className="relative h-full overflow-auto canvas-grid-bg">
           <div className="absolute top-4 left-4 right-4 flex justify-between items-center pointer-events-none z-5">
             <div className="flex gap-2 pointer-events-auto">
-              <span className="text-[10px] text-[#a1a1aa] bg-[#09090b]/85 px-2.5 py-1 border border-white/8 rounded-full">
+              <span className="text-[10px] text-[#a1a1aa] bg-[#09090b]/85 px-2.5 py-1 border border-white/8 rounded-full shadow-md">
                 Drag headers to move. Double-click to edit structure.
               </span>
-              <a href="#docs" className="text-[10px] text-[#06b6d4] hover:text-white bg-[#06b6d4]/10 border border-[#06b6d4]/30 px-2.5 py-1 rounded-full transition-all">
+              <a href="#docs" className="text-[10px] text-[#06b6d4] hover:text-white bg-[#06b6d4]/10 border border-[#06b6d4]/30 px-2.5 py-1 rounded-full shadow-md transition-all">
                 📖 Open Docs Center
               </a>
-              <a href="#about" className="text-[10px] text-[#a855f7] hover:text-white bg-[#a855f7]/10 border border-[#a855f7]/30 px-2.5 py-1 rounded-full transition-all">
+              <a href="#about" className="text-[10px] text-[#a855f7] hover:text-white bg-[#a855f7]/10 border border-[#a855f7]/30 px-2.5 py-1 rounded-full shadow-md transition-all">
                 ℹ️ About Us
               </a>
             </div>
@@ -773,7 +862,7 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
           </div>
 
           {/* Zoom controls */}
-          <div className="absolute bottom-6 left-6 flex items-center gap-1.5 bg-[#09090b]/80 border border-white/8 backdrop-blur-md px-2 py-1.5 rounded-lg z-10 pointer-events-auto">
+          <div className="absolute bottom-6 left-6 flex items-center gap-1.5 bg-[#09090b]/80 border border-white/8 backdrop-blur-md px-2 py-1.5 rounded-lg z-10 pointer-events-auto shadow-lg">
             <button
               onClick={() => setZoom(prev => Math.max(0.4, +(prev - 0.1).toFixed(1)))}
               className="w-7 h-7 flex items-center justify-center border border-white/5 hover:border-white/16 hover:bg-white/5 text-white rounded text-sm cursor-pointer transition-all font-bold"
@@ -868,49 +957,77 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
         </div>
 
         {/* Right Exporter console */}
-        <div className="bg-[#0b0b0d] border-l border-white/8 flex flex-col h-full">
-          <div className="flex border-b border-white/8 bg-white/1 overflow-x-auto">
-            <button className={`flex-grow font-semibold text-[10px] py-3 text-center cursor-pointer transition-all border-b-2 px-2.5 ${
-              activeExporterTab === 'sql' ? "color-[#06b6d4] border-b-[#06b6d4] bg-[#06b6d4]/3 text-[#06b6d4]" : "text-[#71717a] hover:text-[#f4f4f5] border-b-transparent"
+        <div className="bg-[#0b0b0d] border-l border-white/8 flex flex-col h-full overflow-hidden">
+          <div className="flex border-b border-white/8 bg-white/1 overflow-x-auto min-h-[42px] whitespace-nowrap">
+            <button className={`flex-grow px-3 py-3 text-xs font-semibold text-center cursor-pointer transition-all border-b-2 ${
+              activeExporterTab === 'sql' ? "text-[#06b6d4] border-b-[#06b6d4] bg-[#06b6d4]/3" : "text-[#71717a] hover:text-[#f4f4f5] border-b-transparent"
             }`} onClick={() => setActiveExporterTab("sql")}>SQL DDL</button>
-            <button className={`flex-grow font-semibold text-[10px] py-3 text-center cursor-pointer transition-all border-b-2 px-2.5 ${
-              activeExporterTab === 'prisma' ? "color-[#06b6d4] border-b-[#06b6d4] bg-[#06b6d4]/3 text-[#06b6d4]" : "text-[#71717a] hover:text-[#f4f4f5] border-b-transparent"
+            <button className={`flex-grow px-3 py-3 text-xs font-semibold text-center cursor-pointer transition-all border-b-2 ${
+              activeExporterTab === 'prisma' ? "text-[#06b6d4] border-b-[#06b6d4] bg-[#06b6d4]/3" : "text-[#71717a] hover:text-[#f4f4f5] border-b-transparent"
             }`} onClick={() => setActiveExporterTab("prisma")}>Prisma</button>
-            <button className={`flex-grow font-semibold text-[10px] py-3 text-center cursor-pointer transition-all border-b-2 px-2.5 ${
-              activeExporterTab === 'mongoose' ? "color-[#06b6d4] border-b-[#06b6d4] bg-[#06b6d4]/3 text-[#06b6d4]" : "text-[#71717a] hover:text-[#f4f4f5] border-b-transparent"
+            <button className={`flex-grow px-3 py-3 text-xs font-semibold text-center cursor-pointer transition-all border-b-2 ${
+              activeExporterTab === 'mongoose' ? "text-[#06b6d4] border-b-[#06b6d4] bg-[#06b6d4]/3" : "text-[#71717a] hover:text-[#f4f4f5] border-b-transparent"
             }`} onClick={() => setActiveExporterTab("mongoose")}>Mongoose</button>
-            <button className={`flex-grow font-semibold text-[10px] py-3 text-center cursor-pointer transition-all border-b-2 px-2.5 ${
-              activeExporterTab === 'dbml' ? "color-[#06b6d4] border-b-[#06b6d4] bg-[#06b6d4]/3 text-[#06b6d4]" : "text-[#71717a] hover:text-[#f4f4f5] border-b-transparent"
+            <button className={`flex-grow px-3 py-3 text-xs font-semibold text-center cursor-pointer transition-all border-b-2 ${
+              activeExporterTab === 'dbml' ? "text-[#06b6d4] border-b-[#06b6d4] bg-[#06b6d4]/3" : "text-[#71717a] hover:text-[#f4f4f5] border-b-transparent"
             }`} onClick={() => setActiveExporterTab("dbml")}>DBML</button>
-            <button className={`flex-grow font-semibold text-[10px] py-3 text-center cursor-pointer transition-all border-b-2 px-2.5 ${
-              activeExporterTab === 'optimizer' ? "color-[#06b6d4] border-b-[#06b6d4] bg-[#06b6d4]/3 text-[#06b6d4]" : "text-[#71717a] hover:text-[#f4f4f5] border-b-transparent"
+            <button className={`flex-grow px-3 py-3 text-xs font-semibold text-center cursor-pointer transition-all border-b-2 ${
+              activeExporterTab === 'seed' ? "text-[#06b6d4] border-b-[#06b6d4] bg-[#06b6d4]/3" : "text-[#71717a] hover:text-[#f4f4f5] border-b-transparent"
+            }`} onClick={() => setActiveExporterTab("seed")}>🌱 Seeding</button>
+            <button className={`flex-grow px-3 py-3 text-xs font-semibold text-center cursor-pointer transition-all border-b-2 ${
+              activeExporterTab === 'migration' ? "text-[#06b6d4] border-b-[#06b6d4] bg-[#06b6d4]/3" : "text-[#71717a] hover:text-[#f4f4f5] border-b-transparent"
+            }`} onClick={() => setActiveExporterTab("migration")}>🔄 Migration</button>
+            <button className={`flex-grow px-3 py-3 text-xs font-semibold text-center cursor-pointer transition-all border-b-2 ${
+              activeExporterTab === 'optimizer' ? "text-[#06b6d4] border-b-[#06b6d4] bg-[#06b6d4]/3" : "text-[#71717a] hover:text-[#f4f4f5] border-b-transparent"
             }`} onClick={() => setActiveExporterTab("optimizer")}>🩺 Optimize</button>
-            <button className={`flex-grow font-semibold text-[10px] py-3 text-center cursor-pointer transition-all border-b-2 px-2.5 ${
-              activeExporterTab === 'terminal' ? "color-[#06b6d4] border-b-[#06b6d4] bg-[#06b6d4]/3 text-[#06b6d4]" : "text-[#71717a] hover:text-[#f4f4f5] border-b-transparent"
+            <button className={`flex-grow px-3 py-3 text-xs font-semibold text-center cursor-pointer transition-all border-b-2 ${
+              activeExporterTab === 'terminal' ? "text-[#06b6d4] border-b-[#06b6d4] bg-[#06b6d4]/3" : "text-[#71717a] hover:text-[#f4f4f5] border-b-transparent"
             }`} onClick={() => setActiveExporterTab("terminal")}>💻 SQL Shell</button>
-            <button className={`flex-grow font-semibold text-[10px] py-3 text-center cursor-pointer transition-all border-b-2 px-2.5 ${
-              activeExporterTab === 'billing' ? "color-[#06b6d4] border-b-[#06b6d4] bg-[#06b6d4]/3 text-[#06b6d4]" : "text-[#71717a] hover:text-[#f4f4f5] border-b-transparent"
+            <button className={`flex-grow px-3 py-3 text-xs font-semibold text-center cursor-pointer transition-all border-b-2 ${
+              activeExporterTab === 'snapshots' ? "text-[#06b6d4] border-b-[#06b6d4] bg-[#06b6d4]/3" : "text-[#71717a] hover:text-[#f4f4f5] border-b-transparent"
+            }`} onClick={() => setActiveExporterTab("snapshots")}>📂 Snapshots</button>
+            <button className={`flex-grow px-3 py-3 text-xs font-semibold text-center cursor-pointer transition-all border-b-2 ${
+              activeExporterTab === 'billing' ? "text-[#06b6d4] border-b-[#06b6d4] bg-[#06b6d4]/3" : "text-[#71717a] hover:text-[#f4f4f5] border-b-transparent"
             }`} onClick={() => setActiveExporterTab("billing")}>💳 Billing</button>
           </div>
 
-          <div className="flex-grow overflow-hidden relative">
-            {activeExporterTab !== "billing" && activeExporterTab !== "optimizer" && activeExporterTab !== "terminal" ? (
+          <div className="flex-grow overflow-y-auto relative h-[calc(100vh-111px)]">
+            
+            {/* Standard Code Viewers */}
+            {activeExporterTab !== "billing" && activeExporterTab !== "optimizer" && activeExporterTab !== "terminal" && activeExporterTab !== "snapshots" ? (
               <div className="h-full flex flex-col">
-                <div className="flex justify-between items-center px-5 py-3 bg-black/15 border-b border-white/8">
+                <div className="flex justify-between items-center px-5 py-3 bg-black/15 border-b border-white/8 min-h-[49px]">
                   <span className="text-[10px] text-[#a1a1aa] font-semibold">{codeLangLabel}</span>
-                  <button
-                    className="px-2.5 py-1 bg-white/2 border border-white/8 hover:bg-white/5 rounded text-[10px] font-semibold text-white transition-all cursor-pointer"
-                    onClick={() => { navigator.clipboard.writeText(activeCode); alert("Code copied to clipboard!"); }}
-                  >
-                    Copy Code
-                  </button>
+                  
+                  <div className="flex gap-2 items-center">
+                    {/* Dialect selector in SQL tab */}
+                    {activeExporterTab === "sql" && (
+                      <select 
+                        value={sqlDialect} 
+                        onChange={(e) => setSqlDialect(e.target.value)}
+                        className="bg-white/2 border border-white/8 rounded px-2 py-0.5 text-[10px] text-white outline-none focus:border-[#06b6d4]"
+                      >
+                        <option value="postgres" className="bg-[#111113]">PostgreSQL</option>
+                        <option value="mysql" className="bg-[#111113]">MySQL</option>
+                        <option value="sqlite" className="bg-[#111113]">SQLite</option>
+                        <option value="mssql" className="bg-[#111113]">MSSQL (SQL Server)</option>
+                      </select>
+                    )}
+                    
+                    <button
+                      className="px-2.5 py-1 bg-white/2 border border-white/8 hover:bg-white/5 rounded text-[10px] font-semibold text-white transition-all cursor-pointer"
+                      onClick={() => { navigator.clipboard.writeText(activeCode); alert("Code copied to clipboard!"); }}
+                    >
+                      Copy
+                    </button>
+                  </div>
                 </div>
-                <pre className="flex-grow p-5 overflow-auto bg-[#070708] margin-0 text-[11px] leading-relaxed text-[#a5f3fc] font-mono select-text">
+                <pre className="flex-grow p-5 overflow-auto bg-[#070708] margin-0 text-[11px] leading-relaxed text-[#a5f3fc] font-mono select-text min-h-[300px]">
                   <code>{activeCode}</code>
                 </pre>
               </div>
             ) : activeExporterTab === "optimizer" ? (
-              <div className="h-full overflow-y-auto p-5 space-y-4">
+              <div className="p-5 space-y-4">
                 <div className="bg-[#121214] border border-white/8 rounded-xl p-4">
                   <h3 className="text-sm font-bold text-white mb-1">Database Optimization Inspector</h3>
                   <p className="text-[10px] text-[#71717a]">SchemaFlow checks your visual layout for structural efficiency, keys, and indexes.</p>
@@ -931,12 +1048,12 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
               </div>
             ) : activeExporterTab === "terminal" ? (
               <div className="h-full flex flex-col bg-[#070708]">
-                <div className="flex-grow p-5 overflow-auto font-mono text-[10px] sm:text-[11px] leading-relaxed text-[#00ffcc] space-y-2 select-text">
+                <div className="flex-grow p-5 overflow-auto font-mono text-[10px] sm:text-[11px] leading-relaxed text-[#00ffcc] space-y-2 select-text min-h-[350px]">
                   {terminalHistory.map((line, idx) => (
                     <div key={idx} className="whitespace-pre-wrap">{line}</div>
                   ))}
                 </div>
-                <form onSubmit={handleExecuteTerminalCommand} className="flex border-t border-white/8 bg-[#0a0a0c]">
+                <form onSubmit={handleExecuteTerminalCommand} className="flex border-t border-white/8 bg-[#0a0a0c] mt-auto">
                   <span className="p-3 font-mono text-[11px] text-[#00ffcc] select-none">&gt;</span>
                   <input
                     type="text"
@@ -947,8 +1064,77 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
                   />
                 </form>
               </div>
+            ) : activeExporterTab === "snapshots" ? (
+              <div className="p-5 space-y-5">
+                <div className="bg-[#121214] border border-white/8 rounded-xl p-4">
+                  <h3 className="text-sm font-bold text-white mb-1">Schema Version Control</h3>
+                  <p className="text-[10px] text-[#71717a]">Save temporary visual states of your diagram to rollback or run structural comparisons.</p>
+                  
+                  {/* Create Snapshot input */}
+                  <form onSubmit={handleCreateSnapshot} className="flex gap-2 mt-4">
+                    <input 
+                      type="text"
+                      placeholder="e.g. v2.0 - Billing Update"
+                      value={snapshotLabel}
+                      onChange={(e) => setSnapshotLabel(e.target.value)}
+                      className="flex-grow bg-white/2 border border-white/8 rounded px-2.5 py-1 text-xs text-white outline-none focus:border-[#06b6d4]"
+                    />
+                    <button type="submit" className="px-3 py-1 bg-[#06b6d4] text-white text-xs font-semibold rounded cursor-pointer transition-all">
+                      Save State
+                    </button>
+                  </form>
+                </div>
+
+                <div className="flex flex-col gap-3">
+                  <div className="flex justify-between items-center text-xs font-bold text-[#71717a]">
+                    <span>Saved Snapshots</span>
+                    <button 
+                      onClick={() => { setBaselineTables(JSON.parse(JSON.stringify(tables))); alert("Current schema set as Migration Baseline!"); }}
+                      className="text-[#06b6d4] hover:underline text-[10px] cursor-pointer"
+                    >
+                      Set Current as Migration Baseline
+                    </button>
+                  </div>
+                  
+                  {snapshots.length === 0 ? (
+                    <div className="text-center py-6 border border-white/5 border-dashed rounded-xl">
+                      <span className="text-xs text-[#71717a]">No snapshots saved.</span>
+                    </div>
+                  ) : (
+                    snapshots.map(snap => (
+                      <div key={snap.id} className="bg-white/2 border border-white/8 rounded-xl p-4 flex justify-between items-center">
+                        <div>
+                          <strong className="text-xs text-white block font-bold">{snap.name}</strong>
+                          <span className="text-[9px] text-[#71717a]">{snap.timestamp} • {snap.tables.length} tables</span>
+                        </div>
+                        
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => handleRestoreSnapshot(snap)}
+                            className="px-2 py-1 bg-white/5 border border-white/8 hover:bg-white/10 rounded text-[9px] font-semibold text-white cursor-pointer transition-all"
+                          >
+                            Restore
+                          </button>
+                          <button 
+                            onClick={() => { setBaselineTables(JSON.parse(JSON.stringify(snap.tables))); alert(`"${snap.name}" set as Migration Baseline! Check Migration tab.`); }}
+                            className="px-2 py-1 bg-white/5 border border-white/8 hover:bg-white/10 rounded text-[9px] font-semibold text-[#06b6d4] cursor-pointer transition-all"
+                          >
+                            Set Baseline
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteSnapshot(snap.id)}
+                            className="text-xs text-red-500 hover:text-red-400 p-1 cursor-pointer font-bold"
+                          >
+                            &times;
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             ) : (
-              <div className="h-full overflow-y-auto p-5 space-y-5">
+              <div className="p-5 space-y-5">
                 <div className="bg-gradient-to-r from-white/2 to-white/1 border border-white/8 rounded-xl p-4">
                   <h3 className="text-sm font-bold text-white mb-1">Plan Subscriptions</h3>
                   <p className="text-[10px] text-[#71717a]">Modify allocations to configure workspace restrictions.</p>
