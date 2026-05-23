@@ -145,6 +145,7 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
   const [isStripeModalOpen, setIsStripeModalOpen] = useState(false);
   const [editTableId, setEditTableId] = useState(null);
   const [stripeModalTier, setStripeModalTier] = useState("pro");
+  const [zoom, setZoom] = useState(1);
 
   const fileInputRef = useRef(null);
 
@@ -177,8 +178,8 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
         if (t.id === tableId) {
           return {
             ...t,
-            x: Math.max(0, Math.min(2200, offsetX + dx)),
-            y: Math.max(0, Math.min(1700, offsetY + dy))
+            x: Math.max(0, Math.min(2200, offsetX + Math.round(dx / zoom))),
+            y: Math.max(0, Math.min(1700, offsetY + Math.round(dy / zoom)))
           };
         }
         return t;
@@ -193,6 +194,69 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
   };
+
+  // Grid Auto-Layout function
+  const handleAutoLayout = () => {
+    const cols = 3;
+    const colWidth = 280;
+    const rowHeight = 220;
+
+    setTables(prev => prev.map((t, idx) => {
+      const col = idx % cols;
+      const row = Math.floor(idx / cols);
+      return {
+        ...t,
+        x: 80 + col * colWidth,
+        y: 80 + row * rowHeight
+      };
+    }));
+  };
+
+  // Compute Schema Diagnostics
+  const totalColumns = tables.reduce((acc, t) => acc + t.columns.length, 0);
+  const totalRelations = tables.reduce((acc, t) => {
+    return acc + t.columns.filter(c => c.fkTarget).length;
+  }, 0);
+
+  const getInspectorIssues = () => {
+    const issues = [];
+    tables.forEach(t => {
+      // Check if table has a primary key
+      const hasPk = t.columns.some(c => c.pk);
+      if (!hasPk) {
+        issues.push({
+          type: "warning",
+          message: `Table "${t.name}" has no primary key.`
+        });
+      }
+
+      // Check for broken foreign key references
+      t.columns.forEach(col => {
+        if (col.fkTarget) {
+          const [targetTblId, targetColName] = col.fkTarget.split(".");
+          const targetTbl = tables.find(tbl => tbl.id === targetTblId);
+          if (!targetTbl) {
+            issues.push({
+              type: "error",
+              message: `Column "${t.name}.${col.name}" has broken target table reference.`
+            });
+          } else {
+            const targetCol = targetTbl.columns.find(c => c.name === targetColName);
+            if (!targetCol) {
+              issues.push({
+                type: "error",
+                message: `Column "${t.name}.${col.name}" has broken target column reference.`
+              });
+            }
+          }
+        }
+      });
+    });
+    return issues;
+  };
+
+  const issues = getInspectorIssues();
+  const healthScore = Math.max(0, 100 - (issues.filter(i => i.type === "error").length * 20) - (issues.filter(i => i.type === "warning").length * 10));
 
   // SVG connector lines path coordinate calculation
   const renderRelationPaths = () => {
@@ -484,6 +548,9 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
           <button className="px-3 py-1.5 bg-gradient-to-r from-[#06b6d4] to-[#0891b2] text-white rounded text-xs font-semibold cursor-pointer w-full transition-all" onClick={openCreateModal}>
             + Create Table
           </button>
+          <button className="px-3 py-1.5 border border-[#06b6d4]/30 hover:border-[#06b6d4]/60 hover:bg-[#06b6d4]/5 rounded text-xs font-semibold text-[#22d3ee] cursor-pointer text-left w-full transition-all" onClick={handleAutoLayout}>
+            ⚡ Auto-Arrange Layout
+          </button>
           <button className="px-3 py-1.5 border border-white/8 hover:border-white/16 hover:bg-white/5 rounded text-xs font-semibold text-white cursor-pointer text-left w-full transition-all" onClick={handleJsonDownload}>
             💾 Export JSON Schema
           </button>
@@ -522,6 +589,51 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
         </div>
 
         {/* Stripe Upgrade sidebar widget */}
+        <div className="text-[10px] font-bold text-[#71717a] uppercase tracking-wider mt-2.5">
+          Schema Diagnostics
+        </div>
+        <div className="bg-white/2 border border-white/8 rounded-lg p-3 flex flex-col gap-2">
+          <div className="flex justify-between items-center text-xs font-semibold text-white">
+            <span>Schema Health</span>
+            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+              healthScore >= 90 ? "bg-green-500/10 text-green-400" : healthScore >= 70 ? "bg-yellow-500/10 text-yellow-400" : "bg-red-500/10 text-red-400"
+            }`}>
+              {healthScore}%
+            </span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-1.5 text-center mt-1">
+            <div className="bg-white/1 border border-white/3 rounded p-1">
+              <span className="text-[8px] text-[#71717a] block">Tables</span>
+              <strong className="text-xs text-white font-semibold">{tables.length}</strong>
+            </div>
+            <div className="bg-white/1 border border-white/3 rounded p-1">
+              <span className="text-[8px] text-[#71717a] block">Fields</span>
+              <strong className="text-xs text-white font-semibold">{totalColumns}</strong>
+            </div>
+            <div className="bg-white/1 border border-white/3 rounded p-1">
+              <span className="text-[8px] text-[#71717a] block">Links</span>
+              <strong className="text-xs text-white font-semibold">{totalRelations}</strong>
+            </div>
+          </div>
+
+          {issues.length > 0 ? (
+            <div className="flex flex-col gap-1 max-h-[100px] overflow-y-auto mt-1 border-t border-white/5 pt-1.5">
+              {issues.map((iss, index) => (
+                <div key={index} className="text-[9px] leading-normal flex gap-1 items-start text-[#a1a1aa]">
+                  <span>{iss.type === "error" ? "❌" : "⚠️"}</span>
+                  <span className="truncate" title={iss.message}>{iss.message}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-[9px] text-green-400/80 flex gap-1 items-center justify-center mt-1 border-t border-white/5 pt-1.5">
+              <span>✅</span> Clean schema configuration!
+            </div>
+          )}
+        </div>
+
+        {/* Stripe Upgrade sidebar widget */}
         <div className="bg-white/2 border border-white/8 rounded-lg p-3 mt-auto">
           <div className="flex justify-between text-[10px] font-semibold mb-1.5 text-white">
             <span>Table Usage Allocation</span>
@@ -556,7 +668,42 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
             </span>
           </div>
 
-          <div className="w-[2500px] h-[2000px] relative">
+          {/* Zoom controls */}
+          <div className="absolute bottom-6 left-6 flex items-center gap-1.5 bg-[#09090b]/80 border border-white/8 backdrop-blur-md px-2 py-1.5 rounded-lg z-10 pointer-events-auto">
+            <button
+              onClick={() => setZoom(prev => Math.max(0.4, +(prev - 0.1).toFixed(1)))}
+              className="w-7 h-7 flex items-center justify-center border border-white/5 hover:border-white/16 hover:bg-white/5 text-white rounded text-sm cursor-pointer transition-all font-bold"
+              title="Zoom Out"
+            >
+              -
+            </button>
+            <span className="text-[10px] font-bold text-white min-w-[40px] text-center">
+              {Math.round(zoom * 100)}%
+            </span>
+            <button
+              onClick={() => setZoom(prev => Math.min(2.0, +(prev + 0.1).toFixed(1)))}
+              className="w-7 h-7 flex items-center justify-center border border-white/5 hover:border-white/16 hover:bg-white/5 text-white rounded text-sm cursor-pointer transition-all font-bold"
+              title="Zoom In"
+            >
+              +
+            </button>
+            <div className="w-[1px] h-4 bg-white/10 mx-1"></div>
+            <button
+              onClick={() => setZoom(1)}
+              className="px-2.5 py-1 bg-white/2 border border-white/8 hover:bg-white/5 rounded text-[10px] font-bold text-white transition-all cursor-pointer"
+            >
+              Reset
+            </button>
+          </div>
+
+          <div 
+            className="w-[2500px] h-[2000px] relative"
+            style={{ 
+              transform: `scale(${zoom})`, 
+              transformOrigin: "top left",
+              transition: "transform 0.1s ease-out"
+            }}
+          >
             {/* SVG Link lines overlay */}
             <svg id="canvas-svg-overlay" className="absolute inset-0 w-full h-full pointer-events-none z-1">
               <defs>
