@@ -78,3 +78,33 @@ body {
     stroke-dashoffset: -400;
   }
 }
+
+/* Premium Animations & Ambient Glows */
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-15px) rotate(3deg); }
+}
+
+@keyframes gradientShift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.25; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(1.15); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.bg-gradient-animate {
+  background-size: 200% auto;
+  animation: gradientShift 6s ease infinite;
+}
+
+.floating-glow {
+  filter: blur(130px);
+  animation: pulseGlow 8s ease-in-out infinite;
+}
