@@ -1,17 +1,22 @@
 {
   "name": "schemaflow",
-  "version": "1.0.0",
-  "description": "Premium Database Schema Designer Modeler SaaS",
-  "main": "server.js",
+  "version": "0.1.0",
+  "private": true,
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
   },
   "dependencies": {
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2"
+    "next": "16.2.6",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
   },
-  "author": "Antigravity Team",
-  "license": "ISC"
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.6",
+    "tailwindcss": "^4"
+  }
 }
