@@ -149,8 +149,8 @@ export default function LandingPage({ onLaunchConsole }) {
         <nav className="flex items-center gap-6">
           <a href="#playground" className="text-xs text-[#a1a1aa] hover:text-[#f4f4f5] transition-all font-medium hidden sm:inline-block">Playground</a>
           <a href="#features" className="text-xs text-[#a1a1aa] hover:text-[#f4f4f5] transition-all font-medium">Features</a>
-          <a href="#testimonials" className="text-xs text-[#a1a1aa] hover:text-[#f4f4f5] transition-all font-medium hidden md:inline-block">Reviews</a>
-          <a href="#pricing" className="text-xs text-[#a1a1aa] hover:text-[#f4f4f5] transition-all font-medium">Pricing</a>
+          <a href="#about" className="text-xs text-[#a1a1aa] hover:text-[#f4f4f5] transition-all font-medium">About</a>
+          <a href="#docs" className="text-xs text-[#a1a1aa] hover:text-[#f4f4f5] transition-all font-medium">Docs</a>
           <button
             onClick={() => onLaunchConsole("pro")}
             className="px-4 py-2 border border-white/8 hover:border-white/16 hover:bg-white/5 rounded-md text-xs font-semibold text-white transition-all cursor-pointer"

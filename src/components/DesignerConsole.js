@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import TableModal from "./TableModal";
 import StripeModal from "./StripeModal";
 import {
@@ -7,138 +7,10 @@ import {
   compileMongooseSchema,
   compileDbmlSchema
 } from "../utils/exporters";
-
-const TEMPLATE_SCHEMAS = {
-  billing: [
-    {
-      id: "tbl-users",
-      name: "users",
-      x: 80,
-      y: 120,
-      columns: [
-        { name: "id", type: "uuid", pk: true, nn: true, uq: true, fkTarget: null },
-        { name: "email", type: "varchar", pk: false, nn: true, uq: true, fkTarget: null },
-        { name: "joined_at", type: "timestamp", pk: false, nn: true, uq: false, fkTarget: null }
-      ]
-    },
-    {
-      id: "tbl-subscriptions",
-      name: "subscriptions",
-      x: 360,
-      y: 60,
-      columns: [
-        { name: "id", type: "uuid", pk: true, nn: true, uq: true, fkTarget: null },
-        { name: "user_id", type: "uuid", pk: false, nn: true, uq: false, fkTarget: "tbl-users.id" },
-        { name: "plan_tier", type: "varchar", pk: false, nn: true, uq: false, fkTarget: null },
-        { name: "status", type: "varchar", pk: false, nn: true, uq: false, fkTarget: null },
-        { name: "ends_at", type: "timestamp", pk: false, nn: false, uq: false, fkTarget: null }
-      ]
-    },
-    {
-      id: "tbl-invoices",
-      name: "invoices",
-      x: 640,
-      y: 160,
-      columns: [
-        { name: "id", type: "uuid", pk: true, nn: true, uq: true, fkTarget: null },
-        { name: "subscription_id", type: "uuid", pk: false, nn: true, uq: false, fkTarget: "tbl-subscriptions.id" },
-        { name: "amount", type: "decimal", pk: false, nn: true, uq: false, fkTarget: null },
-        { name: "is_paid", type: "boolean", pk: false, nn: true, uq: false, fkTarget: null },
-        { name: "billing_date", type: "timestamp", pk: false, nn: true, uq: false, fkTarget: null }
-      ]
-    }
-  ],
-  ecommerce: [
-    {
-      id: "tbl-customers",
-      name: "customers",
-      x: 60,
-      y: 120,
-      columns: [
-        { name: "id", type: "uuid", pk: true, nn: true, uq: true, fkTarget: null },
-        { name: "full_name", type: "varchar", pk: false, nn: true, uq: false, fkTarget: null },
-        { name: "email", type: "varchar", pk: false, nn: true, uq: true, fkTarget: null }
-      ]
-    },
-    {
-      id: "tbl-products",
-      name: "products",
-      x: 340,
-      y: 300,
-      columns: [
-        { name: "id", type: "uuid", pk: true, nn: true, uq: true, fkTarget: null },
-        { name: "title", type: "varchar", pk: false, nn: true, uq: false, fkTarget: null },
-        { name: "price", type: "decimal", pk: false, nn: true, uq: false, fkTarget: null },
-        { name: "stock_count", type: "integer", pk: false, nn: true, uq: false, fkTarget: null }
-      ]
-    },
-    {
-      id: "tbl-orders",
-      name: "orders",
-      x: 340,
-      y: 50,
-      columns: [
-        { name: "id", type: "uuid", pk: true, nn: true, uq: true, fkTarget: null },
-        { name: "customer_id", type: "uuid", pk: false, nn: true, uq: false, fkTarget: "tbl-customers.id" },
-        { name: "order_date", type: "timestamp", pk: false, nn: true, uq: false, fkTarget: null },
-        { name: "total_amount", type: "decimal", pk: false, nn: true, uq: false, fkTarget: null }
-      ]
-    },
-    {
-      id: "tbl-order-items",
-      name: "order_items",
-      x: 620,
-      y: 180,
-      columns: [
-        { name: "id", type: "uuid", pk: true, nn: true, uq: true, fkTarget: null },
-        { name: "order_id", type: "uuid", pk: false, nn: true, uq: false, fkTarget: "tbl-orders.id" },
-        { name: "product_id", type: "uuid", pk: false, nn: true, uq: false, fkTarget: "tbl-products.id" },
-        { name: "quantity", type: "integer", pk: false, nn: true, uq: false, fkTarget: null },
-        { name: "price", type: "decimal", pk: false, nn: true, uq: false, fkTarget: null }
-      ]
-    }
-  ],
-  social: [
-    {
-      id: "tbl-social-users",
-      name: "users",
-      x: 80,
-      y: 150,
-      columns: [
-        { name: "id", type: "integer", pk: true, nn: true, uq: true, fkTarget: null },
-        { name: "username", type: "varchar", pk: false, nn: true, uq: true, fkTarget: null },
-        { name: "avatar_url", type: "varchar", pk: false, nn: false, uq: false, fkTarget: null }
-      ]
-    },
-    {
-      id: "tbl-posts",
-      name: "posts",
-      x: 360,
-      y: 60,
-      columns: [
-        { name: "id", type: "integer", pk: true, nn: true, uq: true, fkTarget: null },
-        { name: "author_id", type: "integer", pk: false, nn: true, uq: false, fkTarget: "tbl-social-users.id" },
-        { name: "body", type: "text", pk: false, nn: true, uq: false, fkTarget: null },
-        { name: "posted_at", type: "timestamp", pk: false, nn: true, uq: false, fkTarget: null }
-      ]
-    },
-    {
-      id: "tbl-comments",
-      name: "comments",
-      x: 640,
-      y: 160,
-      columns: [
-        { name: "id", type: "integer", pk: true, nn: true, uq: true, fkTarget: null },
-        { name: "post_id", type: "integer", pk: false, nn: true, uq: false, fkTarget: "tbl-posts.id" },
-        { name: "commenter_id", type: "integer", pk: false, nn: true, uq: false, fkTarget: "tbl-social-users.id" },
-        { name: "content", type: "text", pk: false, nn: true, uq: false, fkTarget: null }
-      ]
-    }
-  ]
-};
+import { TEMPLATES_CATALOG } from "../utils/templatesCatalog";
 
 export default function DesignerConsole({ tier, onChangeTier, onExit }) {
-  const [tables, setTables] = useState(TEMPLATE_SCHEMAS.billing);
+  const [tables, setTables] = useState(TEMPLATES_CATALOG.saas);
   const [selectedTableId, setSelectedTableId] = useState("tbl-users");
   const [activeExporterTab, setActiveExporterTab] = useState("sql");
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
@@ -147,13 +19,47 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
   const [stripeModalTier, setStripeModalTier] = useState("pro");
   const [zoom, setZoom] = useState(1);
 
+  // Terminal Emulator State
+  const [terminalInput, setTerminalInput] = useState("");
+  const [terminalHistory, setTerminalHistory] = useState([
+    "SchemaFlow SQL Terminal Shell v1.0.2 - Interactive Database Simulator",
+    "Type 'HELP' for a list of available mock SQL statements.",
+    "Type 'TABLES' to see active schema targets.",
+    ""
+  ]);
+  const [virtualDb, setVirtualDb] = useState({
+    users: [
+      { id: "usr_1001", email: "developer@schemaflow.io", plan: "pro" },
+      { id: "usr_1002", email: "buyer@acquire.com", plan: "free" }
+    ],
+    payments: [
+      { id: "pay_2001", user_id: "usr_1001", amount: "12.00" }
+    ],
+    listings: [
+      { id: "list_3001", host_id: "usr_1001", title: "Sleek Glassmorphic Loft" }
+    ]
+  });
+
   const fileInputRef = useRef(null);
+
+  // Sync virtual DB table properties when schema layout changes
+  useEffect(() => {
+    setVirtualDb(prev => {
+      const nextDb = { ...prev };
+      tables.forEach(t => {
+        if (!nextDb[t.name]) {
+          nextDb[t.name] = [];
+        }
+      });
+      return nextDb;
+    });
+  }, [tables]);
 
   // Load a preset template
   const handleLoadTemplate = (key) => {
-    if (TEMPLATE_SCHEMAS[key]) {
-      setTables(JSON.parse(JSON.stringify(TEMPLATE_SCHEMAS[key])));
-      setSelectedTableId(TEMPLATE_SCHEMAS[key][0].id);
+    if (TEMPLATES_CATALOG[key]) {
+      setTables(JSON.parse(JSON.stringify(TEMPLATES_CATALOG[key])));
+      setSelectedTableId(TEMPLATES_CATALOG[key][0].id);
     }
   };
 
@@ -258,6 +164,192 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
   const issues = getInspectorIssues();
   const healthScore = Math.max(0, 100 - (issues.filter(i => i.type === "error").length * 20) - (issues.filter(i => i.type === "warning").length * 10));
 
+  // Schema Optimization Recommendations
+  const getOptimizerRecommendations = () => {
+    const list = [];
+    tables.forEach(t => {
+      // Audit columns
+      const hasTimestamps = t.columns.some(c => c.name === "created_at" || c.name === "updated_at");
+      if (!hasTimestamps) {
+        list.push({
+          type: "suggestion",
+          title: `Add audit fields to "${t.name}"`,
+          desc: "Audit tracking: Add 'created_at' and 'updated_at' timestamp fields to track records history."
+        });
+      }
+
+      // PK check
+      const hasPk = t.columns.some(c => c.pk);
+      if (!hasPk) {
+        list.push({
+          type: "critical",
+          title: `Add primary key to "${t.name}"`,
+          desc: "Entity Integrity: Relational tables must have a primary key (e.g. 'id' serial or uuid) for indexing."
+        });
+      }
+
+      // Indexes on FKs
+      t.columns.forEach(col => {
+        if (col.fkTarget) {
+          list.push({
+            type: "performance",
+            title: `Create lookup index on "${t.name}.${col.name}"`,
+            desc: `Query Speed: Add a B-Tree index on foreign key column "${col.name}" to speed up relational JOIN scans.`
+          });
+        }
+      });
+
+      // Text type heap size
+      t.columns.forEach(col => {
+        if (col.type === "text") {
+          list.push({
+            type: "performance",
+            title: `Separate heavy text columns in "${t.name}"`,
+            desc: `Heap Storage: Column "${col.name}" is type TEXT. If storing large payloads, consider separating it into an audit/details subtable.`
+          });
+        }
+      });
+    });
+
+    if (list.length === 0) {
+      list.push({
+        type: "success",
+        title: "All optimizations passed!",
+        desc: "Your visual schema design follows industry standard normalizations and performance indexing rules."
+      });
+    }
+
+    return list;
+  };
+
+  const recommendations = getOptimizerRecommendations();
+
+  // Executing Virtual SQL Commands
+  const handleExecuteTerminalCommand = (e) => {
+    e.preventDefault();
+    const cmd = terminalInput.trim();
+    if (!cmd) return;
+
+    const nextHistory = [...terminalHistory, `> ${cmd}`];
+    const upperCmd = cmd.toUpperCase();
+
+    if (upperCmd === "HELP") {
+      nextHistory.push(
+        "Supported Mock Queries:",
+        "  - HELP : Display instructions.",
+        "  - TABLES : List names of active tables in diagram schema.",
+        "  - CLEAR : Wipe terminal console log history.",
+        "  - SELECT * FROM [table] : Display active rows in a formatted table.",
+        "  - INSERT INTO [table] (col1, col2) VALUES ('val1', 'val2') : Insert new row.",
+        ""
+      );
+    } else if (upperCmd === "CLEAR") {
+      setTerminalHistory([]);
+      setTerminalInput("");
+      return;
+    } else if (upperCmd === "TABLES") {
+      const names = tables.map(t => t.name);
+      if (names.length === 0) {
+        nextHistory.push("No active tables found. Create a table to target.", "");
+      } else {
+        nextHistory.push("Active Database Schema Targets:", ...names.map(n => `  - ${n}`), "");
+      }
+    } else if (upperCmd.startsWith("SELECT * FROM")) {
+      const matches = cmd.match(/select\s+\*\s+from\s+([a-z0-9_]+)/i);
+      if (matches && matches[1]) {
+        const tblName = matches[1].toLowerCase();
+        const records = virtualDb[tblName] || [];
+        const tableSchema = tables.find(t => t.name === tblName);
+
+        if (!tableSchema) {
+          nextHistory.push(`Error: relation "${tblName}" does not exist in active schema.`, "");
+        } else if (records.length === 0) {
+          nextHistory.push(`(0 rows returned for table "${tblName}")`, "");
+        } else {
+          const cols = tableSchema.columns.map(c => c.name);
+          const colWidths = {};
+          cols.forEach(col => {
+            colWidths[col] = col.length;
+            records.forEach(row => {
+              const valStr = String(row[col] !== undefined ? row[col] : "NULL");
+              if (valStr.length > colWidths[col]) colWidths[col] = valStr.length;
+            });
+          });
+
+          let separator = "+";
+          let headerLine = "|";
+          cols.forEach(col => {
+            separator += "-".repeat(colWidths[col] + 2) + "+";
+            headerLine += ` ${col.padEnd(colWidths[col])} |`;
+          });
+
+          const dataLines = [];
+          records.forEach(row => {
+            let dataLine = "|";
+            cols.forEach(col => {
+              const valStr = String(row[col] !== undefined ? row[col] : "NULL");
+              dataLine += ` ${valStr.padEnd(colWidths[col])} |`;
+            });
+            dataLines.push(dataLine);
+          });
+
+          nextHistory.push(
+            separator,
+            headerLine,
+            separator,
+            ...dataLines,
+            separator,
+            `(${records.length} rows in set)`,
+            ""
+          );
+        }
+      } else {
+        nextHistory.push("Error: Syntax error in SELECT query.", "");
+      }
+    } else if (upperCmd.startsWith("INSERT INTO")) {
+      const matches = cmd.match(/insert\s+into\s+([a-z0-9_]+)\s*\(([^)]+)\)\s*values\s*\(([^)]+)\)/i);
+      if (matches && matches[1] && matches[2] && matches[3]) {
+        const tblName = matches[1].toLowerCase();
+        const colString = matches[2];
+        const valString = matches[3];
+
+        const tableSchema = tables.find(t => t.name === tblName);
+        if (!tableSchema) {
+          nextHistory.push(`Error: relation "${tblName}" does not exist.`, "");
+        } else {
+          const cols = colString.split(",").map(s => s.trim().toLowerCase());
+          const vals = valString.split(",").map(s => s.trim().replace(/^'|'$/g, "").replace(/^"|"$/g, ""));
+
+          if (cols.length !== vals.length) {
+            nextHistory.push("Error: Column count does not match values count.", "");
+          } else {
+            const newRow = {};
+            tableSchema.columns.forEach(c => {
+              newRow[c.name] = "NULL";
+            });
+            cols.forEach((col, idx) => {
+              newRow[col] = vals[idx];
+            });
+
+            setVirtualDb(prev => ({
+              ...prev,
+              [tblName]: [...(prev[tblName] || []), newRow]
+            }));
+
+            nextHistory.push("INSERT 0 1. Row inserted successfully into memory database state.", "");
+          }
+        }
+      } else {
+        nextHistory.push("Error: Syntax error in INSERT statement. Use: INSERT INTO [table] (col1, col2) VALUES ('val1', 'val2')", "");
+      }
+    } else {
+      nextHistory.push(`Error: Unknown SQL command: "${cmd}". Type HELP for details.`, "");
+    }
+
+    setTerminalHistory(nextHistory);
+    setTerminalInput("");
+  };
+
   // SVG connector lines path coordinate calculation
   const renderRelationPaths = () => {
     const paths = [];
@@ -329,7 +421,6 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
 
     setTables(prev => {
       const filtered = prev.filter(t => t.id !== id);
-      // clean references
       filtered.forEach(t => {
         t.columns.forEach(c => {
           if (c.fkTarget && c.fkTarget.startsWith(id + ".")) {
@@ -424,7 +515,6 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
       tablesSvgHtml += `</g>`;
     });
 
-    // Capture connection paths rendered as standard XML
     let pathsHtml = "";
     tables.forEach(t => {
       t.columns.forEach((col, colIdx) => {
@@ -511,7 +601,7 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
   };
 
   return (
-    <div id="dashboard-app" className="w-full min-h-screen grid grid-cols-1 md:grid-cols-[240px_1fr] bg-[#09090b]">
+    <div id="dashboard-app" className="w-full min-h-screen grid grid-cols-1 md:grid-cols-[240px_1fr] bg-[#09090b] select-none">
       
       {/* Sidebar Layout */}
       <aside className="bg-[#0b0b0d] border-r border-white/8 p-5 flex flex-col gap-5 max-h-screen overflow-y-auto">
@@ -530,14 +620,20 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
           Database Templates
         </div>
         <div className="flex flex-col gap-1.5">
-          <button className="px-3 py-1.5 border border-white/8 hover:border-white/16 hover:bg-white/5 rounded text-xs font-semibold text-white cursor-pointer text-left w-full transition-all" onClick={() => handleLoadTemplate("billing")}>
-            💳 SaaS Billing Schema
+          <button className="px-3 py-1.5 border border-white/8 hover:border-white/16 hover:bg-white/5 rounded text-xs font-semibold text-white cursor-pointer text-left w-full transition-all" onClick={() => handleLoadTemplate("saas")}>
+            💳 SaaS Core Billing
           </button>
-          <button className="px-3 py-1.5 border border-white/8 hover:border-white/16 hover:bg-white/5 rounded text-xs font-semibold text-white cursor-pointer text-left w-full transition-all" onClick={() => handleLoadTemplate("ecommerce")}>
-            🛒 E-Commerce Shop Schema
+          <button className="px-3 py-1.5 border border-white/8 hover:border-white/16 hover:bg-white/5 rounded text-xs font-semibold text-white cursor-pointer text-left w-full transition-all" onClick={() => handleLoadTemplate("airbnb")}>
+            🏠 Airbnb Clone Schema
           </button>
-          <button className="px-3 py-1.5 border border-white/8 hover:border-white/16 hover:bg-white/5 rounded text-xs font-semibold text-white cursor-pointer text-left w-full transition-all" onClick={() => handleLoadTemplate("social")}>
-            💬 Social Network Schema
+          <button className="px-3 py-1.5 border border-white/8 hover:border-white/16 hover:bg-white/5 rounded text-xs font-semibold text-white cursor-pointer text-left w-full transition-all" onClick={() => handleLoadTemplate("uber")}>
+            🚗 Uber Ride Schema
+          </button>
+          <button className="px-3 py-1.5 border border-white/8 hover:border-white/16 hover:bg-white/5 rounded text-xs font-semibold text-white cursor-pointer text-left w-full transition-all" onClick={() => handleLoadTemplate("jira")}>
+            🎫 Jira Task Schema
+          </button>
+          <button className="px-3 py-1.5 border border-white/8 hover:border-white/16 hover:bg-white/5 rounded text-xs font-semibold text-white cursor-pointer text-left w-full transition-all" onClick={() => handleLoadTemplate("discord")}>
+            💬 Discord Chat Schema
           </button>
         </div>
 
@@ -588,7 +684,7 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
           )}
         </div>
 
-        {/* Stripe Upgrade sidebar widget */}
+        {/* Diagnostics Widget */}
         <div className="text-[10px] font-bold text-[#71717a] uppercase tracking-wider mt-2.5">
           Schema Diagnostics
         </div>
@@ -653,14 +749,22 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
       </aside>
 
       {/* Main Workspace split */}
-      <main className="grid grid-cols-1 xl:grid-cols-[1fr_380px] h-screen overflow-hidden">
+      <main className="grid grid-cols-1 xl:grid-cols-[1fr_400px] h-screen overflow-hidden">
         
         {/* Canvas Area */}
         <div id="canvas-viewport-container" className="relative h-full overflow-auto canvas-grid-bg">
           <div className="absolute top-4 left-4 right-4 flex justify-between items-center pointer-events-none z-5">
-            <span className="text-[10px] text-[#71717a] bg-[#09090b]/75 px-2.5 py-1 border border-white/8 rounded-full">
-              Drag headers to move tables. Double-click card to edit structure.
-            </span>
+            <div className="flex gap-2 pointer-events-auto">
+              <span className="text-[10px] text-[#a1a1aa] bg-[#09090b]/85 px-2.5 py-1 border border-white/8 rounded-full">
+                Drag headers to move. Double-click to edit structure.
+              </span>
+              <a href="#docs" className="text-[10px] text-[#06b6d4] hover:text-white bg-[#06b6d4]/10 border border-[#06b6d4]/30 px-2.5 py-1 rounded-full transition-all">
+                📖 Open Docs Center
+              </a>
+              <a href="#about" className="text-[10px] text-[#a855f7] hover:text-white bg-[#a855f7]/10 border border-[#a855f7]/30 px-2.5 py-1 rounded-full transition-all">
+                ℹ️ About Us
+              </a>
+            </div>
             <span className={`pointer-events-auto text-[10px] font-bold px-2.5 py-1 rounded-full uppercase border border-transparent ${
               tier === 'free' ? 'bg-[#8b5cf6]/12 border-[#8b5cf6]/25 text-[#a78bfa]' : 'bg-[#06b6d4]/12 border-[#06b6d4]/25 text-[#22d3ee]'
             }`}>
@@ -766,25 +870,31 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
         {/* Right Exporter console */}
         <div className="bg-[#0b0b0d] border-l border-white/8 flex flex-col h-full">
           <div className="flex border-b border-white/8 bg-white/1 overflow-x-auto">
-            <button className={`flex-1 font-semibold text-[10px] py-3 text-center cursor-pointer transition-all border-b-2 ${
+            <button className={`flex-grow font-semibold text-[10px] py-3 text-center cursor-pointer transition-all border-b-2 px-2.5 ${
               activeExporterTab === 'sql' ? "color-[#06b6d4] border-b-[#06b6d4] bg-[#06b6d4]/3 text-[#06b6d4]" : "text-[#71717a] hover:text-[#f4f4f5] border-b-transparent"
             }`} onClick={() => setActiveExporterTab("sql")}>SQL DDL</button>
-            <button className={`flex-1 font-semibold text-[10px] py-3 text-center cursor-pointer transition-all border-b-2 ${
+            <button className={`flex-grow font-semibold text-[10px] py-3 text-center cursor-pointer transition-all border-b-2 px-2.5 ${
               activeExporterTab === 'prisma' ? "color-[#06b6d4] border-b-[#06b6d4] bg-[#06b6d4]/3 text-[#06b6d4]" : "text-[#71717a] hover:text-[#f4f4f5] border-b-transparent"
             }`} onClick={() => setActiveExporterTab("prisma")}>Prisma</button>
-            <button className={`flex-1 font-semibold text-[10px] py-3 text-center cursor-pointer transition-all border-b-2 ${
+            <button className={`flex-grow font-semibold text-[10px] py-3 text-center cursor-pointer transition-all border-b-2 px-2.5 ${
               activeExporterTab === 'mongoose' ? "color-[#06b6d4] border-b-[#06b6d4] bg-[#06b6d4]/3 text-[#06b6d4]" : "text-[#71717a] hover:text-[#f4f4f5] border-b-transparent"
             }`} onClick={() => setActiveExporterTab("mongoose")}>Mongoose</button>
-            <button className={`flex-1 font-semibold text-[10px] py-3 text-center cursor-pointer transition-all border-b-2 ${
+            <button className={`flex-grow font-semibold text-[10px] py-3 text-center cursor-pointer transition-all border-b-2 px-2.5 ${
               activeExporterTab === 'dbml' ? "color-[#06b6d4] border-b-[#06b6d4] bg-[#06b6d4]/3 text-[#06b6d4]" : "text-[#71717a] hover:text-[#f4f4f5] border-b-transparent"
             }`} onClick={() => setActiveExporterTab("dbml")}>DBML</button>
-            <button className={`flex-1 font-semibold text-[10px] py-3 text-center cursor-pointer transition-all border-b-2 ${
+            <button className={`flex-grow font-semibold text-[10px] py-3 text-center cursor-pointer transition-all border-b-2 px-2.5 ${
+              activeExporterTab === 'optimizer' ? "color-[#06b6d4] border-b-[#06b6d4] bg-[#06b6d4]/3 text-[#06b6d4]" : "text-[#71717a] hover:text-[#f4f4f5] border-b-transparent"
+            }`} onClick={() => setActiveExporterTab("optimizer")}>🩺 Optimize</button>
+            <button className={`flex-grow font-semibold text-[10px] py-3 text-center cursor-pointer transition-all border-b-2 px-2.5 ${
+              activeExporterTab === 'terminal' ? "color-[#06b6d4] border-b-[#06b6d4] bg-[#06b6d4]/3 text-[#06b6d4]" : "text-[#71717a] hover:text-[#f4f4f5] border-b-transparent"
+            }`} onClick={() => setActiveExporterTab("terminal")}>💻 SQL Shell</button>
+            <button className={`flex-grow font-semibold text-[10px] py-3 text-center cursor-pointer transition-all border-b-2 px-2.5 ${
               activeExporterTab === 'billing' ? "color-[#06b6d4] border-b-[#06b6d4] bg-[#06b6d4]/3 text-[#06b6d4]" : "text-[#71717a] hover:text-[#f4f4f5] border-b-transparent"
             }`} onClick={() => setActiveExporterTab("billing")}>💳 Billing</button>
           </div>
 
           <div className="flex-grow overflow-hidden relative">
-            {activeExporterTab !== "billing" ? (
+            {activeExporterTab !== "billing" && activeExporterTab !== "optimizer" && activeExporterTab !== "terminal" ? (
               <div className="h-full flex flex-col">
                 <div className="flex justify-between items-center px-5 py-3 bg-black/15 border-b border-white/8">
                   <span className="text-[10px] text-[#a1a1aa] font-semibold">{codeLangLabel}</span>
@@ -798,6 +908,44 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
                 <pre className="flex-grow p-5 overflow-auto bg-[#070708] margin-0 text-[11px] leading-relaxed text-[#a5f3fc] font-mono select-text">
                   <code>{activeCode}</code>
                 </pre>
+              </div>
+            ) : activeExporterTab === "optimizer" ? (
+              <div className="h-full overflow-y-auto p-5 space-y-4">
+                <div className="bg-[#121214] border border-white/8 rounded-xl p-4">
+                  <h3 className="text-sm font-bold text-white mb-1">Database Optimization Inspector</h3>
+                  <p className="text-[10px] text-[#71717a]">SchemaFlow checks your visual layout for structural efficiency, keys, and indexes.</p>
+                </div>
+                <div className="flex flex-col gap-3">
+                  {recommendations.map((rec, rIdx) => (
+                    <div key={rIdx} className="bg-white/2 border border-white/8 rounded-xl p-4 space-y-1">
+                      <div className="flex justify-between items-center">
+                        <strong className="text-xs text-white font-bold">{rec.title}</strong>
+                        <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase ${
+                          rec.type === "critical" ? "bg-red-500/10 text-red-400" : rec.type === "performance" ? "bg-yellow-500/10 text-yellow-400" : rec.type === "success" ? "bg-green-500/10 text-green-400" : "bg-[#06b6d4]/10 text-[#06b6d4]"
+                        }`}>{rec.type}</span>
+                      </div>
+                      <p className="text-[10px] text-[#a1a1aa] leading-normal">{rec.desc}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : activeExporterTab === "terminal" ? (
+              <div className="h-full flex flex-col bg-[#070708]">
+                <div className="flex-grow p-5 overflow-auto font-mono text-[10px] sm:text-[11px] leading-relaxed text-[#00ffcc] space-y-2 select-text">
+                  {terminalHistory.map((line, idx) => (
+                    <div key={idx} className="whitespace-pre-wrap">{line}</div>
+                  ))}
+                </div>
+                <form onSubmit={handleExecuteTerminalCommand} className="flex border-t border-white/8 bg-[#0a0a0c]">
+                  <span className="p-3 font-mono text-[11px] text-[#00ffcc] select-none">&gt;</span>
+                  <input
+                    type="text"
+                    value={terminalInput}
+                    onChange={(e) => setTerminalInput(e.target.value)}
+                    placeholder="Enter virtual query (e.g. SELECT * FROM users)..."
+                    className="flex-grow p-3 bg-transparent border-none outline-none font-mono text-[11px] text-white"
+                  />
+                </form>
               </div>
             ) : (
               <div className="h-full overflow-y-auto p-5 space-y-5">

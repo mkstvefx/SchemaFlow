@@ -3,16 +3,23 @@
 import React, { useState, useEffect } from "react";
 import LandingPage from "../components/LandingPage";
 import DesignerConsole from "../components/DesignerConsole";
+import AboutPage from "../components/AboutPage";
+import DocumentationHub from "../components/DocumentationHub";
 
 export default function Home() {
-  const [view, setView] = useState("landing"); // landing, app
+  const [view, setView] = useState("landing"); // landing, app, about, docs
   const [tier, setTier] = useState("pro");
 
   // Sync hash routing
   useEffect(() => {
     const handleHashChange = () => {
-      if (window.location.hash === "#designer") {
+      const hash = window.location.hash;
+      if (hash === "#designer") {
         setView("app");
+      } else if (hash === "#about") {
+        setView("about");
+      } else if (hash === "#docs") {
+        setView("docs");
       } else {
         setView("landing");
       }
@@ -38,14 +45,21 @@ export default function Home() {
 
   return (
     <>
-      {view === "landing" ? (
+      {view === "landing" && (
         <LandingPage onLaunchConsole={handleLaunchConsole} />
-      ) : (
+      )}
+      {view === "app" && (
         <DesignerConsole
           tier={tier}
           onChangeTier={setTier}
           onExit={handleExitConsole}
         />
+      )}
+      {view === "about" && (
+        <AboutPage onExit={handleExitConsole} />
+      )}
+      {view === "docs" && (
+        <DocumentationHub onExit={() => setView("app")} />
       )}
     </>
   );
