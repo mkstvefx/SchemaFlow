@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import TableModal from "./TableModal";
 import StripeModal from "./StripeModal";
+import AuthModal from "./AuthModal";
 import {
   compileSqlSchema,
   compilePrismaSchema,
@@ -10,6 +11,7 @@ import {
   compileMigrationSql
 } from "../utils/exporters";
 import { TEMPLATES_CATALOG } from "../utils/templatesCatalog";
+import { supabase, isSupabaseConfigured } from "../utils/supabase";
 
 export default function DesignerConsole({ tier, onChangeTier, onExit }) {
   const [tables, setTables] = useState(TEMPLATES_CATALOG.saas);
@@ -17,6 +19,7 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
   const [activeExporterTab, setActiveExporterTab] = useState("sql");
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
   const [isStripeModalOpen, setIsStripeModalOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [editTableId, setEditTableId] = useState(null);
   const [stripeModalTier, setStripeModalTier] = useState("pro");
   
@@ -24,6 +27,9 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
   const [zoom, setZoom] = useState(1);
   const [sqlDialect, setSqlDialect] = useState("postgres"); // postgres, mysql, sqlite, mssql
   const [searchTableQuery, setSearchTableQuery] = useState("");
+  
+  // Auth state
+  const [activeUser, setActiveUser] = useState(null);
   
   // Snapshots and Migration Baseline state
   const [snapshots, setSnapshots] = useState([]);
@@ -53,7 +59,7 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
 
   const fileInputRef = useRef(null);
 
-  // Load snapshots from localStorage on mount
+  // Load snapshots from localStorage on mount & listen to Supabase Auth sessions
   useEffect(() => {
     const saved = localStorage.getItem("schemaflow_snapshots");
     if (saved) {
@@ -62,6 +68,27 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
       } catch (e) {
         console.error(e);
       }
+    }
+
+    // Set up Supabase Session detection if configured
+    if (isSupabaseConfigured) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session && session.user) {
+          setActiveUser(session.user);
+          loadSchemaFromSupabase(session.user);
+        }
+      });
+
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (session && session.user) {
+          setActiveUser(session.user);
+          loadSchemaFromSupabase(session.user);
+        } else {
+          setActiveUser(null);
+        }
+      });
+
+      return () => subscription.unsubscribe();
     }
   }, []);
 
@@ -84,6 +111,45 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
     });
   }, [tables]);
 
+  // Load/Save Schema from/to Supabase
+  const loadSchemaFromSupabase = async (user) => {
+    if (!isSupabaseConfigured) return;
+    try {
+      const { data, error } = await supabase
+        .from("schemas")
+        .select("tables_data")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (data && data.tables_data) {
+        setTables(data.tables_data);
+      }
+    } catch (err) {
+      console.error("Failed to load schema from Supabase:", err);
+    }
+  };
+
+  const saveSchemaToSupabase = async (currentTables) => {
+    if (!activeUser || !isSupabaseConfigured) return;
+    try {
+      await supabase
+        .from("schemas")
+        .upsert({
+          user_id: activeUser.id,
+          tables_data: currentTables,
+          updated_at: new Date()
+        });
+    } catch (err) {
+      console.error("Failed to save schema to Supabase:", err);
+    }
+  };
+
+  // State wrapper that saves to cloud on changes
+  const updateTables = (newTables) => {
+    setTables(newTables);
+    saveSchemaToSupabase(newTables);
+  };
+
   // Table locator scrolling centering
   const handleSelectTableAndCenter = (tableId) => {
     setSelectedTableId(tableId);
@@ -102,7 +168,7 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
   const handleLoadTemplate = (key) => {
     if (TEMPLATES_CATALOG[key]) {
       const copy = JSON.parse(JSON.stringify(TEMPLATES_CATALOG[key]));
-      setTables(copy);
+      updateTables(copy);
       setBaselineTables(copy); // Reset baseline on template load
       setSelectedTableId(TEMPLATES_CATALOG[key][0].id);
     }
@@ -125,16 +191,20 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
       const dx = moveEvent.clientX - startX;
       const dy = moveEvent.clientY - startY;
 
-      setTables(prev => prev.map(t => {
-        if (t.id === tableId) {
-          return {
-            ...t,
-            x: Math.max(0, Math.min(2200, offsetX + Math.round(dx / zoom))),
-            y: Math.max(0, Math.min(1700, offsetY + Math.round(dy / zoom)))
-          };
-        }
-        return t;
-      }));
+      setTables(prev => {
+        const next = prev.map(t => {
+          if (t.id === tableId) {
+            return {
+              ...t,
+              x: Math.max(0, Math.min(2200, offsetX + Math.round(dx / zoom))),
+              y: Math.max(0, Math.min(1700, offsetY + Math.round(dy / zoom)))
+            };
+          }
+          return t;
+        });
+        saveSchemaToSupabase(next);
+        return next;
+      });
     };
 
     const handleMouseUp = () => {
@@ -152,15 +222,19 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
     const colWidth = 280;
     const rowHeight = 220;
 
-    setTables(prev => prev.map((t, idx) => {
-      const col = idx % cols;
-      const row = Math.floor(idx / cols);
-      return {
-        ...t,
-        x: 80 + col * colWidth,
-        y: 80 + row * rowHeight
-      };
-    }));
+    setTables(prev => {
+      const arranged = prev.map((t, idx) => {
+        const col = idx % cols;
+        const row = Math.floor(idx / cols);
+        return {
+          ...t,
+          x: 80 + col * colWidth,
+          y: 80 + row * rowHeight
+        };
+      });
+      saveSchemaToSupabase(arranged);
+      return arranged;
+    });
   };
 
   // Version Snapshot Controls
@@ -181,7 +255,7 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
 
   const handleRestoreSnapshot = (snap) => {
     if (!confirm(`Are you sure you want to restore "${snap.name}"? Current canvas will be overwritten.`)) return;
-    setTables(JSON.parse(JSON.stringify(snap.tables)));
+    updateTables(JSON.parse(JSON.stringify(snap.tables)));
   };
 
   const handleDeleteSnapshot = (id) => {
@@ -198,7 +272,6 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
   const getInspectorIssues = () => {
     const issues = [];
     tables.forEach(t => {
-      // Check if table has a primary key
       const hasPk = t.columns.some(c => c.pk);
       if (!hasPk) {
         issues.push({
@@ -207,7 +280,6 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
         });
       }
 
-      // Check for broken foreign key references
       t.columns.forEach(col => {
         if (col.fkTarget) {
           const [targetTblId, targetColName] = col.fkTarget.split(".");
@@ -460,7 +532,7 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
   const handleSaveTable = (savedTable) => {
     const exists = tables.some(t => t.id === savedTable.id);
     if (exists) {
-      setTables(tables.map(t => {
+      updateTables(tables.map(t => {
         if (t.id === savedTable.id) {
           return {
             ...t,
@@ -471,7 +543,7 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
         return t;
       }));
     } else {
-      setTables([
+      updateTables([
         ...tables,
         {
           ...savedTable,
@@ -495,6 +567,7 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
           }
         });
       });
+      saveSchemaToSupabase(filtered);
       return filtered;
     });
 
@@ -527,7 +600,7 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
       try {
         const data = JSON.parse(event.target.result);
         if (Array.isArray(data.tables)) {
-          setTables(data.tables);
+          updateTables(data.tables);
           if (data.activeTier) onChangeTier(data.activeTier);
           setSelectedTableId(data.tables.length > 0 ? data.tables[0].id : null);
           alert("Database schema layout imported successfully!");
@@ -818,8 +891,43 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
           )}
         </div>
 
-        {/* Stripe Upgrade sidebar widget */}
+        {/* User Account / Auth Widget */}
         <div className="bg-white/2 border border-white/8 rounded-lg p-3 mt-auto">
+          {activeUser ? (
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-[10px] text-white">
+                <span className="font-bold truncate max-w-[120px]" title={activeUser.email}>{activeUser.email}</span>
+                <span className="text-[8px] bg-green-500/10 text-green-400 px-1 py-0.5 rounded font-extrabold">Active</span>
+              </div>
+              <p className="text-[9px] text-[#71717a]">☁️ Auto-synced to Supabase Cloud</p>
+              <button
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  setActiveUser(null);
+                  onChangeTier("free");
+                  alert("Logged out successfully.");
+                }}
+                className="w-full py-1 border border-red-500/20 hover:border-red-500/40 hover:bg-red-500/5 text-red-400 rounded text-[9px] font-semibold cursor-pointer transition-all"
+              >
+                Log Out
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <span className="text-[10px] text-[#71717a] font-semibold block">Cloud Synchronization</span>
+              <p className="text-[9px] text-[#71717a] leading-normal">Log in to save database schemas in the cloud and sync automatically.</p>
+              <button
+                onClick={() => setIsAuthModalOpen(true)}
+                className="w-full py-1.5 bg-[#06b6d4]/10 border border-[#06b6d4]/30 hover:bg-[#06b6d4]/20 text-[#06b6d4] rounded text-[10px] font-bold cursor-pointer transition-all"
+              >
+                Log In / Register
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Stripe Upgrade sidebar widget */}
+        <div className="bg-white/2 border border-white/8 rounded-lg p-3">
           <div className="flex justify-between text-[10px] font-semibold mb-1.5 text-white">
             <span>Table Usage Allocation</span>
             <span>{limitsLabel}</span>
@@ -1198,6 +1306,16 @@ export default function DesignerConsole({ tier, onChangeTier, onExit }) {
         onClose={() => setIsStripeModalOpen(false)}
         tierKey={stripeModalTier}
         onPaymentSuccess={onChangeTier}
+      />
+
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onAuthSuccess={(user) => {
+          setActiveUser(user);
+          if (user.plan_tier) onChangeTier(user.plan_tier);
+          loadSchemaFromSupabase(user);
+        }}
       />
     </div>
   );
